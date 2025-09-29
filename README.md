@@ -40,11 +40,5 @@ Student scans QR printed on certificate (points to /verify), enters serial numbe
 
 ---
 
-If you want, I can:
-- Produce `curl`  commands or Postman collection to test endpoints.
-- Convert the client to Tailwind + nicer UI.
-- Add signature/HMAC approach so QR directly includes `(serial + signature)` , letting the student not type serial but still making it tamper-proof.
 
-
-*End of document.*
 #
