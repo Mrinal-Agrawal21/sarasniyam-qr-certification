@@ -8,7 +8,7 @@ const app = express();
 
 const envOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 const allowedOrigins = envOrigins.length ? envOrigins : [
-  "https://sarasniyam-qr-certification-niw9.vercel.app/",
+  "https://sarasniyam-qr-certification-niw9.vercel.app",
   "https://sarasniyam.com",
   "http://localhost:5173"
 ];
