@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import API from '../api'
+import API, { useGet, usePost } from '../api'
 
 export default function Admin(){
   const [serial, setSerial] = useState('')
@@ -8,7 +8,8 @@ export default function Admin(){
   const [course, setCourse] = useState('')
   const [position, setPosition] = useState('')
   const [issueDate, setIssueDate] = useState('')
-  const [list, setList] = useState([])
+  const { data: list = [], loading: listLoading, refetch: refetchList } = useGet('/admin/certificates', { enabled: false }, [])
+  const { mutate: createCert, loading: creating } = usePost('/admin/certificate')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -23,27 +24,21 @@ export default function Admin(){
       return
     }
     // Optional: validate token
-    API.get('/auth/me').then(()=>fetchList()).catch(()=>{
+    API.get('/auth/me').then(()=>refetchList()).catch(()=>{
       localStorage.removeItem('token');
       navigate('/login')
     })
   }, [])
 
-  async function fetchList(){
-    try{
-      const res = await API.get('/admin/certificates')
-      setList(res.data)
-    }catch(err){ console.error(err) }
-  }
 
   async function handleCreate(e){
     e.preventDefault();
     setLoading(true); setError(''); setSuccess('')
     try{
-      await API.post('/admin/certificate', { serialNumber: serial, studentName: name, course, position, issueDate })
+      await createCert({ serialNumber: serial, studentName: name, course, position, issueDate })
       setSuccess('Certificate created and QR generated.')
       setSerial(''); setName(''); setCourse(''); setPosition(''); setIssueDate('')
-      fetchList()
+      refetchList()
     }catch(err){ setError(err.response?.data?.message || 'Error creating certificate') }
     finally { setLoading(false) }
   }
@@ -85,8 +80,8 @@ export default function Admin(){
           </div>
           <div className="row">
             <input className="input" value={issueDate} onChange={e=>setIssueDate(e.target.value)} type="date" />
-            <button className="btn success" type="submit" disabled={loading}>
-              {loading ? 'Creating…' : 'Create & Generate QR'}
+            <button className="btn success" type="submit" disabled={loading || creating}>
+              {loading || creating ? 'Creating…' : 'Create & Generate QR'}
             </button>
           </div>
         </form>
@@ -98,7 +93,8 @@ export default function Admin(){
       <section className="section">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Existing Certificates</h3>
-          {list.length === 0 && <p className="helper">No certificates yet.</p>}
+          {listLoading && <p className="helper">Loading…</p>}
+          {!listLoading && list.length === 0 && <p className="helper">No certificates yet.</p>}
           <ul className="list">
             {list.map(c => (
               <li className="list-item" key={c.serialNumber}>
@@ -106,14 +102,17 @@ export default function Admin(){
                   <div><b>{c.studentName}</b> — <span className="mono">{c.serialNumber}</span></div>
                   <div className="helper">{c.course || '-'} • {c.position || '-'} • {c.issueDate ? new Date(c.issueDate).toDateString() : '-'}</div>
                 </div>
-                {c.qrPath && (
-                  <a className="btn" href={`${API.defaults.baseURL.replace('/api', '')}${c.qrPath}`} target="_blank">Open QR</a>
-                )}
+                {(() => {
+                  const qrLink = c.qrUrl || (c.qrPath ? `${API.defaults.baseURL.replace('/api', '')}${c.qrPath}` : null);
+                  return qrLink ? (
+                    <a className="btn" href={qrLink} target="_blank" rel="noreferrer">Open QR</a>
+                  ) : null;
+                })()}
                 <button className="btn" onClick={async ()=>{
                   if (!confirm(`Delete certificate ${c.serialNumber}?`)) return;
                   try{
                     await API.delete(`/admin/certificate/${encodeURIComponent(c.serialNumber)}`)
-                    fetchList()
+                    refetchList()
                   }catch(err){ setError(err.response?.data?.message || 'Delete failed') }
                 }}>Delete</button>
               </li>
