@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const Counter = require('../models/Counter');
+const cloudinary = require('../config/cloudinary');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'qr');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -42,15 +43,23 @@ exports.createCertificate = async (req, res) => {
     // QR: we direct to frontend verify page — student will still input serial.
     const verifyUrl = `${process.env.BASE_URL || 'http://localhost:5173'}/verify`;
 
-    // Generate QR as PNG file
-    const qrFile = path.join(UPLOAD_DIR, `${serialNumber}.png`);
-    const qrData = await QRCode.toFile(qrFile, verifyUrl);
-
-    cert.qrPath = `/uploads/qr/${serialNumber}.png`;
+    // Generate QR as Data URL (PNG)
+    const dataUrl = await QRCode.toDataURL(verifyUrl, { type: 'image/png', margin: 1, scale: 8 });
+    // Upload to Cloudinary
+    const uploadRes = await cloudinary.uploader.upload(dataUrl, {
+      folder: process.env.CLOUDINARY_FOLDER || 'certificates/qr',
+      public_id: serialNumber,
+      overwrite: true,
+      resource_type: 'image'
+    });
+    cert.qrUrl = uploadRes.secure_url;
+    cert.qrPublicId = uploadRes.public_id;
+    // Keep legacy path blank in cloud mode
+    cert.qrPath = undefined;
 
     await cert.save();
 
-    res.status(201).json({ message: 'Certificate created', certificate: cert, qrFile: cert.qrPath });
+    res.status(201).json({ message: 'Certificate created', certificate: cert });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
@@ -64,7 +73,15 @@ exports.deleteCertificate = async (req, res) => {
     const cert = await Certificate.findOneAndDelete({ serialNumber: serial });
     if (!cert) return res.status(404).json({ message: 'Certificate not found' });
 
-    // Remove QR image if exists
+    // Remove Cloudinary asset if exists
+    if (cert.qrPublicId) {
+      try {
+        await cloudinary.uploader.destroy(cert.qrPublicId);
+      } catch (e) {
+        console.error('Cloudinary delete failed:', e.message);
+      }
+    }
+    // Remove local QR image if exists (legacy)
     if (cert.qrPath) {
       const filePath = path.join(__dirname, '..', cert.qrPath.replace(/^\/+/, ''));
       fs.unlink(filePath, (err) => {

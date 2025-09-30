@@ -15,8 +15,4 @@ router.get('/next-serial', auth, controller.nextSerial);
 // Admin: delete by serial
 router.delete('/certificate/:serialNumber', auth, controller.deleteCertificate);
 
-router.get('/health', (req, res) => {
-  res.send("Server is Healthy")
-})
-
 module.exports = router;

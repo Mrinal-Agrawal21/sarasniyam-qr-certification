@@ -7,7 +7,12 @@ const CertificateSchema = new mongoose.Schema({
   position: String,
   issueDate: Date,
   createdAt: { type: Date, default: Date.now },
-  qrPath: String // path to stored QR code image, optional
+  // Legacy local file path (kept for backward compatibility)
+  qrPath: String,
+  // Cloudinary URL of the QR image
+  qrUrl: String,
+  // Cloudinary public ID to enable deletion
+  qrPublicId: String
 });
 
 module.exports = mongoose.model('Certificate', CertificateSchema);
